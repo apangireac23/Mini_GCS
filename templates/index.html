@@ -1,0 +1,179 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pixhawk Mission Control</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        margin: 16px;
+      }
+      h2 {
+        margin: 0 0 12px;
+      }
+      section {
+        margin-top: 12px;
+      }
+      #log {
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas,
+          "Liberation Mono", monospace;
+        border: 1px solid #ccc;
+        padding: 8px;
+        height: 220px;
+        overflow: auto;
+      }
+      #main-container {
+        margin-top: 16px;
+      }
+      .telemetry-split {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        align-items: start;
+      }
+      #telemetry-section,
+      #status-section {
+        border: 1px solid #eee;
+        padding: 8px;
+        border-radius: 4px;
+      }
+      button {
+        cursor: pointer;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>Pixhawk Mission Control</h2>
+
+    <section>
+      <form id="uploadForm">
+        <input type="file" id="mission" name="mission" accept=".waypoints" />
+        <button type="submit">Upload Mission</button>
+      </form>
+    </section>
+
+    <section>
+      <button id="startBtn">Start Mission</button>
+    </section>
+
+    <section>
+      <div id="log"></div>
+    </section>
+
+    <div id="main-container">
+      <div id="top-panel">
+        <div class="telemetry-box">
+          <div class="telemetry-split">
+            <div id="telemetry-section">
+              <h3>Live Telemetry</h3>
+              <p>Latitude: <span id="lat">-</span></p>
+              <p>Longitude: <span id="lon">-</span></p>
+              <p>Altitude: <span id="alt">-</span></p>
+            </div>
+            <div id="status-section">
+              <h3>Status</h3>
+              <p>Armed: <span id="armed">-</span></p>
+              <p>Connected: <span id="connected">-</span></p>
+              <p>Mode: <span id="mode">-</span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+
+    <script>
+      window.addEventListener("load", function () {
+        const logEl = document.getElementById("log");
+
+        function appendLog(line) {
+          const atBottom =
+            Math.abs(logEl.scrollTop + logEl.clientHeight - logEl.scrollHeight) < 5;
+          logEl.textContent += (logEl.textContent ? "\n" : "") + line;
+          if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // Check Socket.IO availability
+        if (typeof io !== "function") {
+          appendLog("⚠️ Socket.IO client failed to load. Check your network or CDN link.");
+          return;
+        }
+
+        // Initialize socket connection
+        const serverUrl = location.origin;
+        const socket = io(serverUrl, { transports: ["websocket", "polling"] });
+
+        socket.on("connect", () => appendLog("[socket] connected"));
+        socket.on("connect_error", (err) =>
+          appendLog("[socket] connect_error: " + (err?.message || err))
+        );
+        socket.on("reconnect_error", (err) =>
+          appendLog("[socket] reconnect_error: " + (err?.message || err))
+        );
+        socket.on("error", (err) =>
+          appendLog("[socket] error: " + (err?.message || err))
+        );
+        socket.on("log", (data) => appendLog(String(data.message)));
+
+        // Upload form handler
+        const uploadForm = document.getElementById("uploadForm");
+        uploadForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const fileInput = document.getElementById("mission");
+          if (!fileInput.files.length) {
+            appendLog("No file selected");
+            return;
+          }
+          const formData = new FormData();
+          formData.append("mission", fileInput.files[0]);
+          try {
+            const resp = await fetch("/upload", { method: "POST", body: formData });
+            const json = await resp.json();
+            if (json.ok) appendLog("✅ Upload successful: " + json.filename);
+            else appendLog("❌ Upload error: " + (json.error || resp.status));
+          } catch (err) {
+            appendLog("Upload failed: " + err);
+          }
+        });
+
+        // Start mission button
+        const startBtn = document.getElementById("startBtn");
+        startBtn.addEventListener("click", async () => {
+          try {
+            const resp = await fetch("/start", { method: "POST" });
+            const json = await resp.json();
+            if (json.ok) appendLog("🚀 Mission started");
+            else appendLog("❌ Start error: " + (json.error || "unknown"));
+          } catch (err) {
+            appendLog("Start request failed: " + err);
+          }
+        });
+
+        // Telemetry updates
+        socket.on("telemetry", function (data) {
+          if (data.latitude !== undefined && data.longitude !== undefined) {
+            document.getElementById("lat").textContent = Number(data.latitude).toFixed(6);
+            document.getElementById("lon").textContent = Number(data.longitude).toFixed(6);
+          }
+          if (data.altitude !== undefined) {
+            document.getElementById("alt").textContent = Number(data.altitude).toFixed(2);
+          }
+        });
+
+        // Status updates
+        socket.on("status", function (data) {
+          document.getElementById("armed").textContent = data.armed ? "✅ Yes" : "❌ No";
+          document.getElementById("connected").textContent = data.connected
+            ? "🟢 Yes"
+            : "🔴 No";
+          document.getElementById("mode").textContent = data.mode || "-";
+        });
+      });
+    </script>
+  </body>
+</html>
