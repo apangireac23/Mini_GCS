@@ -7,96 +7,291 @@
     <style>
       body {
         font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-        margin: 16px;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
       }
       h2 {
         margin: 0 0 12px;
       }
-      section {
-        margin-top: 12px;
+      #main-container {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+      #left-panel {
+        width: 20%;
+        min-width: 250px;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #ddd;
+        height: 100%;
+      }
+      #right-panel {
+        width: 80%;
+        background-color: #f5f5f5;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      
+      .tab-header {
+        display: flex;
+        background: #e0e0e0;
+        border-bottom: 1px solid #ccc;
+      }
+      
+      .tab-button {
+        padding: 10px 20px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1em;
+        color: #555;
+        border-bottom: 2px solid transparent;
+        transition: all 0.3s;
+      }
+      
+      .tab-button.active {
+        background: #f5f5f5;
+        color: #000;
+        border-bottom: 2px solid #2196F3;
+      }
+      
+      .tab-content {
+        flex: 1;
+        padding: 10px;
+        display: none;
+        overflow: auto;
+        box-sizing: border-box;
+        height: 100%;
+        width: 100%;
+      }
+      
+      .tab-content.active {
+        display: flex;
+        flex-direction: column;
+      }
+      
+      #map-view, #camera-view {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 400px;
+        flex: 1;
+        overflow: hidden;
+        border: 2px solid #444;
+        border-radius: 4px;
+        background: #f0f0f0;
+        box-sizing: border-box;
+      }
+      
+      #map {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1;
+        width: 100% !important;
+        height: 100% !important;
+        border: 1px solid rgba(0,0,0,0.2);
+        box-sizing: border-box;
+      }
+      
+      .panel-section {
+        flex: 1;
+        padding: 15px;
+        overflow: auto;
+        border-bottom: 1px solid #eee;
+      }
+      .panel-section:last-child {
+        border-bottom: none;
+      }
+      #log-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 200px;
+        background: white;
+        border-top: 1px solid #ccc;
+        transform: translateY(calc(100% - 30px));
+        transition: transform 0.3s ease;
+        z-index: 1000;
+      }
+      #log-container.visible {
+        transform: translateY(0);
+      }
+      #log-header {
+        background: #f0f0f0;
+        padding: 5px 10px;
+        cursor: pointer;
+        border-bottom: 1px solid #ddd;
       }
       #log {
+        height: 170px;
+        overflow-y: auto;
+        padding: 10px;
         white-space: pre-wrap;
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas,
           "Liberation Mono", monospace;
-        border: 1px solid #ccc;
-        padding: 8px;
-        height: 220px;
-        overflow: auto;
-      }
-      #main-container {
-        margin-top: 16px;
       }
       .telemetry-split {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: 1fr 1fr;
         gap: 12px;
-        align-items: start;
       }
-      #telemetry-section,
-      #status-section {
+      #telemetry-section, #system-status {
         border: 1px solid #eee;
-        padding: 8px;
+        padding: 12px;
         border-radius: 4px;
+        background: #f9f9f9;
+      }
+      
+      .armed { color: #2e7d32; }
+      .disarmed { color: #c62828; }
+      .connected { color: #2e7d32; }
+      .disconnected { color: #c62828; }
+      
+      /* Custom marker style */
+      .drone-marker {
+        font-size: 20px;
+        color: #2196F3;
+        text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+        transform-origin: center;
+        transition: transform 0.5s ease-out;
       }
       button {
         cursor: pointer;
+        padding: 8px 16px;
+        margin: 4px 0;
+        width: 100%;
+      }
+      input[type="file"] {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      h3 {
+        margin-top: 0;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 8px;
       }
     </style>
   </head>
 
   <body>
-    <h2>Pixhawk Mission Control</h2>
-
-    <section>
-      <form id="uploadForm">
-        <input type="file" id="mission" name="mission" accept=".waypoints" />
-        <button type="submit">Upload Mission</button>
-      </form>
-    </section>
-
-    <section>
-      <button id="startBtn">Start Mission</button>
-    </section>
-
-    <section>
-      <div id="log"></div>
-    </section>
-
     <div id="main-container">
-      <div id="top-panel">
-        <div class="telemetry-box">
-          <div class="telemetry-split">
-            <div id="telemetry-section">
-              <h3>Live Telemetry</h3>
-              <p>Latitude: <span id="lat">-</span></p>
-              <p>Longitude: <span id="lon">-</span></p>
-              <p>Altitude: <span id="alt">-</span></p>
-            </div>
-            <div id="status-section">
-              <h3>Status</h3>
-              <p>Armed: <span id="armed">-</span></p>
-              <p>Connected: <span id="connected">-</span></p>
-              <p>Mode: <span id="mode">-</span></p>
-            </div>
+      <div id="left-panel">
+        <!-- Buttons Section -->
+        <div class="panel-section">
+          <h3>Mission Control</h3>
+          <form id="uploadForm">
+            <input type="file" id="mission" name="mission" accept=".waypoints" />
+            <button type="submit">Upload Mission</button>
+          </form>
+          <button id="startBtn">Start Mission</button>
+        </div>
+
+        <!-- Telemetry Section -->
+        <div class="panel-section">
+          <h3>Live Telemetry</h3>
+          <div id="telemetry-section">
+            <p>Latitude: <span id="lat">-</span></p>
+            <p>Longitude: <span id="lon">-</span></p>
+            <p>Altitude: <span id="alt">-</span></p>
           </div>
+        </div>
+
+        <!-- Status Section -->
+        <div class="panel-section">
+          <h3>System Status</h3>
+          <div id="system-status">
+            <p>Armed: <span id="status-armed">-</span></p>
+            <p>Connected: <span id="status-connected">-</span></p>
+            <p>Mode: <span id="status-mode">-</span></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Panel with Tabs -->
+      <div id="right-panel">
+        <div class="tab-header">
+          <button class="tab-button active" data-tab="map">Map</button>
+          <button class="tab-button" data-tab="camera">Camera</button>
+        </div>
+        <div id="map-view" class="tab-content active">
+          <div id="map"></div>
+        </div>
+        <div id="camera-view" class="tab-content">
+          Camera Stream (Coming Soon)
         </div>
       </div>
     </div>
 
+    <!-- Log Container -->
+    <div id="log-container">
+      <div id="log-header">Logs ▼</div>
+      <div id="log"></div>
+    </div>
+
+    <!-- Load Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""/>
+    
+    <!-- Load Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""></script>
+      
+    <!-- Load Esri Leaflet -->
+    <script src="https://unpkg.com/esri-leaflet@3.0.10/dist/esri-leaflet.js"
+      integrity="sha512-1sScWjf7jU8W4N3B0y1PNjW8v+POjXh3T9WZ4iEeXyjEoFL3FQ3VJdfrhRTN8zJtLg6dZQ0nW4Ryg6Tdo+eWQ=="
+      crossorigin=""></script>
+    
     <!-- Load Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
 
     <script>
       window.addEventListener("load", function () {
         const logEl = document.getElementById("log");
+        const logContainer = document.getElementById("log-container");
+        const logHeader = document.getElementById("log-header");
 
         function appendLog(line) {
           const atBottom =
             Math.abs(logEl.scrollTop + logEl.clientHeight - logEl.scrollHeight) < 5;
           logEl.textContent += (logEl.textContent ? "\n" : "") + line;
           if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+          
+          // Keep log container state as is
         }
+
+        // Toggle log visibility
+        logHeader.addEventListener('click', () => {
+          logContainer.classList.toggle('visible');
+        });
+        
+        // Tab switching functionality
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabButtons.forEach(button => {
+          button.addEventListener('click', () => {
+            // Remove active class from all buttons and contents
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // Add active class to clicked button and corresponding content
+            button.classList.add('active');
+            const tabId = button.getAttribute('data-tab');
+            document.getElementById(`${tabId}-view`).classList.add('active');
+          });
+        });
 
         // Check Socket.IO availability
         if (typeof io !== "function") {
@@ -104,9 +299,107 @@
           return;
         }
 
+        // Initialize map
+        let map;
+        let marker;
+        
+        function initMap() {
+          // Default coordinates (will be updated by telemetry)
+          const defaultLat = 20.5937; // Center of India
+          const defaultLon = 78.9629;
+          
+          // Initialize map with Esri World Imagery as default
+          map = L.map('map', {
+            center: [defaultLat, defaultLon],
+            zoom: 13,
+            zoomControl: true,
+            attributionControl: true
+          });
+          
+          // Define base layers
+          const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+          });
+          
+          const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+            maxZoom: 19
+          }).addTo(map); // Add satellite layer by default
+          
+          // Add zoom control with a nice position
+          L.control.zoom({
+            position: 'topright'
+          }).addTo(map);
+          
+          // Add base layers control
+          const baseLayers = {
+            "Satellite": satelliteLayer,
+            "OpenStreetMap": osmLayer
+          };
+          
+          // Add layer control to switch between map types
+          L.control.layers(baseLayers, null, {position: 'topright'}).addTo(map);
+          
+          // Add initial marker (hidden until we get coordinates)
+          marker = L.marker([0, 0], {
+            icon: L.divIcon({
+              className: 'drone-marker',
+              html: '✈',
+              iconSize: [30, 30],
+              iconAnchor: [15, 15]
+            })
+          }).addTo(map);
+          marker.setOpacity(0); // Hide initially
+        }
+        
         // Initialize socket connection
         const serverUrl = location.origin;
         const socket = io(serverUrl, { transports: ["websocket", "polling"] });
+        
+        // Initialize the map immediately and on tab show
+        function initializeMapIfNeeded() {
+          if (!map) {
+            initMap();
+          } else {
+            // Trigger a resize event to ensure map tiles are loaded correctly
+            setTimeout(() => {
+              map.invalidateSize(true);
+              map.setView(map.getCenter(), map.getZoom(), {animate: false});
+            }, 100);
+          }
+        }
+
+        // Function to fit map to container
+        function fitMapToContainer() {
+          if (map) {
+            setTimeout(() => {
+              map.invalidateSize(true);
+              const bounds = map.getBounds();
+              if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [10, 10] });
+              }
+            }, 100);
+          }
+        }
+
+        // Initialize map when the page loads
+        initializeMapIfNeeded();
+        
+        // Handle window resize
+        let resizeTimer;
+        window.addEventListener('resize', function() {
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(fitMapToContainer, 250);
+        });
+
+        // Re-initialize map when tab is shown
+        document.querySelector('.tab-button[data-tab="map"]').addEventListener('click', function() {
+          setTimeout(function() {
+            initializeMapIfNeeded();
+            fitMapToContainer();
+          }, 10);
+        });
 
         socket.on("connect", () => appendLog("[socket] connected"));
         socket.on("connect_error", (err) =>
@@ -167,11 +460,51 @@
 
         // Status updates
         socket.on("status", function (data) {
-          document.getElementById("armed").textContent = data.armed ? "✅ Yes" : "❌ No";
-          document.getElementById("connected").textContent = data.connected
-            ? "🟢 Yes"
-            : "🔴 No";
-          document.getElementById("mode").textContent = data.mode || "-";
+          // Update telemetry section and map
+          if (data.latitude !== undefined && data.longitude !== undefined) {
+            const lat = Number(data.latitude);
+            const lon = Number(data.longitude);
+            document.getElementById("lat").textContent = lat.toFixed(6);
+            document.getElementById("lon").textContent = lon.toFixed(6);
+            
+            // Update map marker if map is initialized
+            if (map && marker) {
+              const newLatLng = L.latLng(lat, lon);
+              
+              // If marker was hidden, show it and center map
+              if (marker.getOpacity() === 0) {
+                marker.setOpacity(1);
+                map.setView(newLatLng, 17); // Zoom in when first getting position
+              } else {
+                // Smoothly animate marker to new position
+                marker.setLatLng(newLatLng);
+                
+                // Keep the map centered on the marker if it's close to the edge
+                const bounds = map.getBounds();
+                if (!bounds.contains(newLatLng)) {
+                  map.panTo(newLatLng, { animate: true, duration: 1 });
+                }
+              }
+            }
+          }
+          if (data.altitude !== undefined) document.getElementById("alt").textContent = Number(data.altitude).toFixed(2) + ' m';
+          
+          // Update system status section
+          if (data.armed !== undefined) {
+            const armedEl = document.getElementById("status-armed");
+            armedEl.textContent = data.armed ? "✅ Armed" : "❌ Disarmed";
+            armedEl.className = data.armed ? 'armed' : 'disarmed';
+          }
+          
+          if (data.connected !== undefined) {
+            const connEl = document.getElementById("status-connected");
+            connEl.textContent = data.connected ? "🟢 Connected" : "🔴 Disconnected";
+            connEl.className = data.connected ? 'connected' : 'disconnected';
+          }
+          
+          if (data.mode !== undefined) {
+            document.getElementById("status-mode").textContent = data.mode || "-";
+          }
         });
       });
     </script>
