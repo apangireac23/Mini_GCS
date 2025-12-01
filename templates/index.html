@@ -492,81 +492,73 @@
           }
         });
 
-        // Telemetry updates
-        socket.on("telemetry", function (data) {
-          if (data.latitude !== undefined && data.longitude !== undefined) {
+        // Position updates (handles both position and altitude)
+        socket.on("position_update", function (data) {
+          // Update telemetry display
+          if (data.latitude !== undefined) {
             document.getElementById("lat").textContent = Number(data.latitude).toFixed(6);
+          }
+          if (data.longitude !== undefined) {
             document.getElementById("lon").textContent = Number(data.longitude).toFixed(6);
           }
           if (data.altitude !== undefined) {
-            document.getElementById("alt").textContent = Number(data.altitude).toFixed(2);
+            document.getElementById("alt").textContent = Number(data.altitude).toFixed(2) + ' m';
           }
-        });
 
-        // Status updates
-        socket.on("status", function (data) {
-          // Update telemetry section and map
-          if (data.latitude !== undefined && data.longitude !== undefined) {
-            const lat = Number(data.latitude);
-            const lon = Number(data.longitude);
-            document.getElementById("lat").textContent = lat.toFixed(6);
-            document.getElementById("lon").textContent = lon.toFixed(6);
+          // Update map marker if we have coordinates
+          if ((data.latitude !== undefined && data.longitude !== undefined) && map && marker) {
+            const newLatLng = L.latLng(data.latitude, data.longitude);
             
-            // Update map marker if map is initialized
-            if (map && marker) {
-              const newLatLng = L.latLng(lat, lon);
+            // Update marker and circle positions
+            marker.setLatLng(newLatLng);
+            if (marker.circle) {
+              marker.circle.setLatLng(newLatLng);
+            }
+            
+            // If this is the first position update, zoom to the marker
+            if (marker._firstUpdate === undefined) {
+              marker._firstUpdate = true;
+              map.setView(newLatLng, 17); // Zoom in for first position
+            } else {
+              // Keep the map centered on the marker if it's close to the edge
+              const bounds = map.getBounds();
+              const padding = 0.1; // 10% padding
+              const sw = bounds.getSouthWest();
+              const ne = bounds.getNorthEast();
+              const lngDiff = Math.abs(ne.lng - sw.lng) * padding;
+              const latDiff = Math.abs(ne.lat - sw.lat) * padding;
               
-              // Update marker and circle positions
-              marker.setLatLng(newLatLng);
-              if (marker.circle) {
-                marker.circle.setLatLng(newLatLng);
-              }
+              const inBounds = newLatLng.lng >= sw.lng + lngDiff && 
+                             newLatLng.lng <= ne.lng - lngDiff &&
+                             newLatLng.lat >= sw.lat + latDiff && 
+                             newLatLng.lat <= ne.lat - latDiff;
               
-              // If this is the first position update, zoom to the marker
-              if (marker._firstUpdate === undefined) {
-                marker._firstUpdate = true;
-                map.setView(newLatLng, 17); // Zoom in for first position
-              } else {
-                // Keep the map centered on the marker if it's close to the edge
-                const bounds = map.getBounds();
-                const padding = 0.1; // 10% padding
-                const sw = bounds.getSouthWest();
-                const ne = bounds.getNorthEast();
-                const lngDiff = Math.abs(ne.lng - sw.lng) * padding;
-                const latDiff = Math.abs(ne.lat - sw.lat) * padding;
-                
-                const inBounds = newLatLng.lng >= sw.lng + lngDiff && 
-                               newLatLng.lng <= ne.lng - lngDiff &&
-                               newLatLng.lat >= sw.lat + latDiff && 
-                               newLatLng.lat <= ne.lat - latDiff;
-                
-                if (!inBounds) {
-                  map.panTo(newLatLng, { 
-                    animate: true, 
-                    duration: 0.5,
-                    easeLinearity: 0.5
-                  });
-                }
+              if (!inBounds) {
+                map.panTo(newLatLng, { 
+                  animate: true, 
+                  duration: 0.5,
+                  easeLinearity: 0.5
+                });
               }
             }
           }
-          if (data.altitude !== undefined) document.getElementById("alt").textContent = Number(data.altitude).toFixed(2) + ' m';
-          
-          // Update system status section
+        });
+
+        // Status updates (only for system status, not position)
+        socket.on("status", function (data) {
+          // Update system status display
           if (data.armed !== undefined) {
             const armedEl = document.getElementById("status-armed");
             armedEl.textContent = data.armed ? "✅ Armed" : "❌ Disarmed";
             armedEl.className = data.armed ? 'armed' : 'disarmed';
           }
-          
           if (data.connected !== undefined) {
-            const connEl = document.getElementById("status-connected");
-            connEl.textContent = data.connected ? "🟢 Connected" : "🔴 Disconnected";
-            connEl.className = data.connected ? 'connected' : 'disconnected';
+            const connectedEl = document.getElementById("status-connected");
+            connectedEl.textContent = data.connected ? "✅ Connected" : "❌ Disconnected";
+            connectedEl.className = data.connected ? 'connected' : 'disconnected';
           }
-          
           if (data.mode !== undefined) {
-            document.getElementById("status-mode").textContent = data.mode || "-";
+            document.getElementById("status-mode").textContent = data.mode || "Unknown";
           }
         });
       });

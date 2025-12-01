@@ -115,14 +115,20 @@ def _emit_telemetry_if_due():
             status[k] = _state[k]
 
     if (now - _last_gps_emit) >= EMIT_INTERVAL:
-        if "latitude" in to_emit and "longitude" in to_emit:
-            socketio.emit("telemetry", {"latitude": to_emit["latitude"], "longitude": to_emit["longitude"]})
-            _last_gps_emit = now
-
-    if (now - _last_alt_emit) >= EMIT_INTERVAL:
-        if "altitude" in to_emit:
-            socketio.emit("telemetry", {"altitude": to_emit["altitude"]})
-            _last_alt_emit = now
+        if "latitude" in to_emit or "longitude" in to_emit or "altitude" in to_emit:
+            # Send all position data together
+            position_data = {}
+            if "latitude" in to_emit:
+                position_data["latitude"] = to_emit["latitude"]
+            if "longitude" in to_emit:
+                position_data["longitude"] = to_emit["longitude"]
+            if "altitude" in to_emit:
+                position_data["altitude"] = to_emit["altitude"]
+            
+            if position_data:
+                socketio.emit("position_update", position_data)
+                _last_gps_emit = now
+                _last_alt_emit = now  # Update both timestamps since we're sending together
 
     if (now - _last_state_emit) >= EMIT_INTERVAL:
         if status:
