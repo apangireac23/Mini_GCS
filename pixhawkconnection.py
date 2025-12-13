@@ -17,21 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class MavlinkAutoConnector:
-    def __init__(self, connection_type='auto'):
-        """
-        Initialize the MAVLink connector
-        
-        Args:
-            connection_type (str): Type of connection to use. Can be 'auto', 'serial', or 'udp'.
-                                 If 'auto', will try both serial and UDP connections.
-        """
+    def __init__(self):
         self.baudrates_to_try = [57600, 115200, 921600]
         self.connection = None
         self.connection_string = None
         self.baudrate = None
         self.port = None
-        self.connection_type = connection_type.lower()
-        self.udp_ports = [14550, 14551, 14540]  # Common UDP ports for SITL and PX4
 
     def scan_serial_ports(self):
         """Scan for available serial ports"""
@@ -99,39 +90,10 @@ class MavlinkAutoConnector:
 
         return None
 
-    def connect_udp(self, udp_port=14550):
-        """Attempt to connect via UDP"""
-        try:
-            connection_string = f'udp:127.0.0.1:{udp_port}'
-            logger.info(f"Attempting UDP connection to {connection_string}")
-            
-            self.connection = mavutil.mavlink_connection(
-                connection_string,
-                input=True,
-                source_system=255,
-                source_component=1,
-                autoreconnect=True,
-                retries=3
-            )
-            
-            # Test the connection
-            try:
-                self.connection.wait_heartbeat(timeout=5)
-                self.connection_string = connection_string
-                logger.info(f"✅ Connected to {connection_string}")
-                return True
-            except Exception as e:
-                self.connection.close()
-                self.connection = None
-                logger.debug(f"No heartbeat on UDP port {udp_port}: {str(e)}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error creating UDP connection: {str(e)}")
-            return False
+    def connect(self):
+        """Attempt auto-connection to a MAVLink device"""
+        logger.debug("[DEBUG] Starting connect()...")
 
-    def connect_serial(self):
-        """Attempt to connect via serial port"""
         ports = self.scan_serial_ports()
         if not ports:
             logger.error("❌ No serial ports found.")
@@ -158,47 +120,9 @@ class MavlinkAutoConnector:
                 except Exception as e:
                     logger.error(f"❌ Failed to establish persistent connection: {repr(e)}")
                     return False
-        return False
 
-    def connect(self, connection_type=None):
-        """
-        Attempt to connect to a MAVLink device
-        
-        Args:
-            connection_type (str, optional): Override the connection type. Can be 'auto', 'serial', or 'udp'.
-        """
-        logger.debug("[DEBUG] Starting connect()...")
-        
-        # Use instance connection_type if not overridden
-        connection_type = connection_type.lower() if connection_type else self.connection_type
-        
-        if connection_type == 'udp':
-            # Try UDP connection
-            for port in self.udp_ports:
-                if self.connect_udp(port):
-                    return True
-            logger.error("❌ No working UDP connections found.")
-            return False
-            
-        elif connection_type == 'serial':
-            # Try serial connection
-            if self.connect_serial():
-                return True
-            logger.error("❌ No working serial connections found.")
-            return False
-            
-        else:  # auto
-            # First try UDP (for SITL)
-            for port in self.udp_ports:
-                if self.connect_udp(port):
-                    return True
-            
-            # Then try serial
-            if self.connect_serial():
-                return True
-                
-            logger.error("❌ No working connections found (tried UDP and serial).")
-            return False
+        logger.error("❌ No working ports found.")
+        return False
 
     def wait_heartbeat(self):
         """Wait for the first heartbeat"""
