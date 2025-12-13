@@ -341,16 +341,31 @@
           // Add layer control to switch between map types
           L.control.layers(baseLayers, null, {position: 'topright'}).addTo(map);
           
-          // Add initial marker (hidden until we get coordinates)
-          marker = L.marker([0, 0], {
+          // Add initial marker at default position (center of India)
+          marker = L.marker([defaultLat, defaultLon], {
             icon: L.divIcon({
               className: 'drone-marker',
-              html: '✈',
+              html: '<div style="background: rgba(0, 0, 0, 0.7); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid white;">✈</div>',
               iconSize: [30, 30],
-              iconAnchor: [15, 15]
-            })
+              iconAnchor: [15, 15],
+              popupAnchor: [0, -15]
+            }),
+            title: 'Drone Position',
+            zIndexOffset: 1000
           }).addTo(map);
-          marker.setOpacity(0); // Hide initially
+          
+          // Add a pulsing circle to make the marker more visible
+          const circle = L.circleMarker([defaultLat, defaultLon], {
+            radius: 8,
+            fillColor: "#4285F4",
+            color: "white",
+            weight: 2,
+            opacity: 0.7,
+            fillOpacity: 0.3
+          }).addTo(map);
+          
+          // Store circle with marker for later updates
+          marker.circle = circle;
         }
         
         // Initialize socket connection
@@ -385,6 +400,36 @@
 
         // Initialize map when the page loads
         initializeMapIfNeeded();
+        
+        // Add some CSS for the marker
+        const style = document.createElement('style');
+        style.textContent = `
+          .drone-marker {
+            transition: transform 0.5s ease, opacity 0.5s ease;
+          }
+          .drone-marker:hover {
+            transform: scale(1.2);
+            z-index: 1000;
+          }
+          .drone-marker::before {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: rgba(66, 133, 244, 0.2);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 2s infinite;
+          }
+          @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.7; }
+            70% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.3; }
+            100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.7; }
+          }
+        `;
+        document.head.appendChild(style);
         
         // Handle window resize
         let resizeTimer;
@@ -447,63 +492,73 @@
           }
         });
 
-        // Telemetry updates
-        socket.on("telemetry", function (data) {
-          if (data.latitude !== undefined && data.longitude !== undefined) {
+        // Position updates (handles both position and altitude)
+        socket.on("position_update", function (data) {
+          // Update telemetry display
+          if (data.latitude !== undefined) {
             document.getElementById("lat").textContent = Number(data.latitude).toFixed(6);
+          }
+          if (data.longitude !== undefined) {
             document.getElementById("lon").textContent = Number(data.longitude).toFixed(6);
           }
           if (data.altitude !== undefined) {
-            document.getElementById("alt").textContent = Number(data.altitude).toFixed(2);
+            document.getElementById("alt").textContent = Number(data.altitude).toFixed(2) + ' m';
           }
-        });
 
-        // Status updates
-        socket.on("status", function (data) {
-          // Update telemetry section and map
-          if (data.latitude !== undefined && data.longitude !== undefined) {
-            const lat = Number(data.latitude);
-            const lon = Number(data.longitude);
-            document.getElementById("lat").textContent = lat.toFixed(6);
-            document.getElementById("lon").textContent = lon.toFixed(6);
+          // Update map marker if we have coordinates
+          if ((data.latitude !== undefined && data.longitude !== undefined) && map && marker) {
+            const newLatLng = L.latLng(data.latitude, data.longitude);
             
-            // Update map marker if map is initialized
-            if (map && marker) {
-              const newLatLng = L.latLng(lat, lon);
+            // Update marker and circle positions
+            marker.setLatLng(newLatLng);
+            if (marker.circle) {
+              marker.circle.setLatLng(newLatLng);
+            }
+            
+            // If this is the first position update, zoom to the marker
+            if (marker._firstUpdate === undefined) {
+              marker._firstUpdate = true;
+              map.setView(newLatLng, 17); // Zoom in for first position
+            } else {
+              // Keep the map centered on the marker if it's close to the edge
+              const bounds = map.getBounds();
+              const padding = 0.1; // 10% padding
+              const sw = bounds.getSouthWest();
+              const ne = bounds.getNorthEast();
+              const lngDiff = Math.abs(ne.lng - sw.lng) * padding;
+              const latDiff = Math.abs(ne.lat - sw.lat) * padding;
               
-              // If marker was hidden, show it and center map
-              if (marker.getOpacity() === 0) {
-                marker.setOpacity(1);
-                map.setView(newLatLng, 17); // Zoom in when first getting position
-              } else {
-                // Smoothly animate marker to new position
-                marker.setLatLng(newLatLng);
-                
-                // Keep the map centered on the marker if it's close to the edge
-                const bounds = map.getBounds();
-                if (!bounds.contains(newLatLng)) {
-                  map.panTo(newLatLng, { animate: true, duration: 1 });
-                }
+              const inBounds = newLatLng.lng >= sw.lng + lngDiff && 
+                             newLatLng.lng <= ne.lng - lngDiff &&
+                             newLatLng.lat >= sw.lat + latDiff && 
+                             newLatLng.lat <= ne.lat - latDiff;
+              
+              if (!inBounds) {
+                map.panTo(newLatLng, { 
+                  animate: true, 
+                  duration: 0.5,
+                  easeLinearity: 0.5
+                });
               }
             }
           }
-          if (data.altitude !== undefined) document.getElementById("alt").textContent = Number(data.altitude).toFixed(2) + ' m';
-          
-          // Update system status section
+        });
+
+        // Status updates (only for system status, not position)
+        socket.on("status", function (data) {
+          // Update system status display
           if (data.armed !== undefined) {
             const armedEl = document.getElementById("status-armed");
             armedEl.textContent = data.armed ? "✅ Armed" : "❌ Disarmed";
             armedEl.className = data.armed ? 'armed' : 'disarmed';
           }
-          
           if (data.connected !== undefined) {
-            const connEl = document.getElementById("status-connected");
-            connEl.textContent = data.connected ? "🟢 Connected" : "🔴 Disconnected";
-            connEl.className = data.connected ? 'connected' : 'disconnected';
+            const connectedEl = document.getElementById("status-connected");
+            connectedEl.textContent = data.connected ? "✅ Connected" : "❌ Disconnected";
+            connectedEl.className = data.connected ? 'connected' : 'disconnected';
           }
-          
           if (data.mode !== undefined) {
-            document.getElementById("status-mode").textContent = data.mode || "-";
+            document.getElementById("status-mode").textContent = data.mode || "Unknown";
           }
         });
       });
