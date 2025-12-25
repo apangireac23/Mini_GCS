@@ -1,0 +1,174 @@
+<!-- aggregator/templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Control Center</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px 0;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: normal;
+        }
+        .drone-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-top: 40px;
+        }
+        .drone-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 20px 40px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            text-align: center;
+            min-width: 200px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .drone-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .scout {
+            background-color: #2c3e50;
+        }
+        .scout:hover {
+            background-color: #3d566e;
+        }
+        .delivery {
+            background-color: #2c3e50;
+        }
+        .delivery:hover {
+            background-color: #3d566e;
+        }
+        .panel {
+            background: white;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .panel h2 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        .status-label {
+            font-weight: bold;
+            color: #7f8c8d;
+        }
+        .status-value {
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Drone Control Center</h1>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="panel">
+            <h2>Available Drones</h2>
+            <p>Select a drone to access its Ground Control Station:</p>
+            
+            <div class="drone-buttons">
+                <a href="/scout" class="drone-button scout">
+                    <div>Scout Drone</div>
+                </a>
+                <a href="/delivery" class="drone-button delivery">
+                    <div>Delivery Drone</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>System Status</h2>
+            <div class="status-item">
+                <span class="status-label">Scout Drone Status:</span>
+                <span class="status-value" id="scout-status">Offline</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Delivery Drone Status:</span>
+                <span class="status-value" id="delivery-status">Offline</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check status of each drone
+        async function checkStatus(drone) {
+            try {
+                const response = await fetch(`/${drone}/status`, { 
+                    method: 'HEAD',
+                    cache: 'no-cache'
+                });
+                const statusElement = document.getElementById(`${drone}-status`);
+                if (response.ok) {
+                    statusElement.textContent = 'Online';
+                    statusElement.style.color = '#2ecc71';
+                } else {
+                    statusElement.textContent = 'Offline';
+                    statusElement.style.color = '#e74c3c';
+                }
+            } catch (error) {
+                const statusElement = document.getElementById(`${drone}-status`);
+                statusElement.textContent = 'Offline';
+                statusElement.style.color = '#e74c3c';
+            }
+        }
+
+        // Check status on load and every 30 seconds
+        ['scout', 'delivery'].forEach(drone => {
+            // Set initial status to checking
+            document.getElementById(`${drone}-status`).textContent = 'Checking...';
+            document.getElementById(`${drone}-status`).style.color = '#f39c12';
+            
+            // Perform initial check
+            checkStatus(drone);
+            
+            // Set up periodic checks
+            setInterval(() => checkStatus(drone), 30000);
+        });
+    </script>
+</body>
+</html>
